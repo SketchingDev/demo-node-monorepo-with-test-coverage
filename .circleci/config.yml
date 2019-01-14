@@ -95,6 +95,9 @@ jobs:
           name: Collate
           command: yarn test:merge-coverage
       - run:
+          name: Debug
+          command: cat ~/lcov-merged.info
+      - run:
           name: Upload
           command: yarn test:upload-coverage
 
