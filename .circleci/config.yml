@@ -1,0 +1,132 @@
+version: 2.1
+
+commands:
+  yarn-install-with-cache:
+    steps:
+      - restore_cache:
+          keys:
+          - v1-dependencies-{{ checksum "package.json" }}
+          - v1-dependencies-
+      - run:
+          name: Install YARN dependencies
+          command: yarn install
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+
+  yarn-test:
+    parameters:
+      package_name:
+        type: string
+    steps:
+      - run:
+          name: Test
+          command: yarn test --scope << parameters.package_name >>
+      - store_test_results:
+          path: ./packages/<< parameters.package_name >>/reports/
+
+executors:
+  node-build-environment:
+    docker:
+      - image: circleci/node:8-browsers
+    working_directory: ~/repo
+
+jobs:
+
+  ## Service 1
+
+  test_service_1:
+    executor: node-build-environment
+    steps:
+      - checkout
+      - yarn-install-with-cache
+      - yarn-test:
+          package_name: service-1
+      - persist_to_workspace:
+          root: ~/repo
+          paths:
+            - packages/service-1/coverage/lcov.info
+
+  build_service_1:
+    executor: node-build-environment
+    steps:
+      - run: echo "Build"
+
+  deploy_service_1:
+    executor: node-build-environment
+    steps:
+      - run: echo "Deploy"
+
+  ## Service 2
+
+  test_service_2:
+    executor: node-build-environment
+    steps:
+      - checkout
+      - yarn-install-with-cache
+      - yarn-test:
+          package_name: service-2
+      - persist_to_workspace:
+          root: ~/repo
+          paths:
+            - packages/service-2/coverage/lcov.info
+
+  build_service_2:
+    executor: node-build-environment
+    steps:
+      - run: echo "Build"
+
+  deploy_service_2:
+    executor: node-build-environment
+    steps:
+      - run: echo "Deploy"
+
+  ## Test coverage
+
+  collate_test_coverage:
+    executor: node-build-environment
+    steps:
+      - checkout
+      - yarn-install-with-cache
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Collate
+          command: yarn test:merge-coverage
+      - run:
+          name: Upload
+          command: yarn test:upload-coverage
+
+workflows:
+  version: 2
+
+  test:
+    jobs:
+
+      ## Service 1
+
+      - test_service_1
+      - build_service_1:
+          requires:
+            - test_service_1
+      - deploy_service_1:
+          requires:
+            - build_service_1
+
+      ## Service 2
+
+      - test_service_2
+      - build_service_2:
+          requires:
+            - test_service_2
+      - deploy_service_2:
+          requires:
+            - build_service_2
+
+      ## Coverage
+
+      - collate_test_coverage:
+          requires:
+            - test_service_1
+            - test_service_2
